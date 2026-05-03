@@ -11,19 +11,55 @@ import { Label } from "../components/ui/label";
 interface AuthPageProps {
   onAuth: (name: string, email: string, password: string, isSignup: boolean) => Promise<void>;
   onOAuth: (provider: string) => Promise<void>;
+  onForgotPassword: (email: string) => Promise<void>;
 }
 
-export function AuthPage({ onAuth, onOAuth }: AuthPageProps) {
+export function AuthPage({ onAuth, onOAuth, onForgotPassword }: AuthPageProps) {
   const [isSignup, setIsSignup] = useState(true);
+  const [isResetMode, setIsResetMode] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
+  const passwordRules = {
+    minLength: password.length >= 12,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSymbol: /[^A-Za-z0-9]/.test(password),
+    noSpaces: !/\s/.test(password),
+  };
+
+  const isStrongPassword =
+    passwordRules.minLength &&
+    passwordRules.hasUppercase &&
+    passwordRules.hasLowercase &&
+    passwordRules.hasNumber &&
+    passwordRules.hasSymbol &&
+    passwordRules.noSpaces;
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isBusy) return;
-    if (!email || !password || (isSignup && !name)) return;
+    if (!email) return;
+
+    if (isResetMode) {
+      try {
+        setIsBusy(true);
+        await onForgotPassword(email);
+      } finally {
+        setIsBusy(false);
+      }
+      return;
+    }
+
+    if (!password || (isSignup && !name)) return;
+
+    if (isSignup && !isStrongPassword) {
+      alert("Password harus minimal 12 karakter, ada huruf besar, huruf kecil, angka, simbol, dan tanpa spasi.");
+      return;
+    }
 
     try {
       setIsBusy(true);
@@ -41,6 +77,11 @@ export function AuthPage({ onAuth, onOAuth }: AuthPageProps) {
     } finally {
       setIsBusy(false);
     }
+  };
+
+  const resetToLogin = () => {
+    setIsResetMode(false);
+    setPassword("");
   };
 
   return (
@@ -93,20 +134,22 @@ export function AuthPage({ onAuth, onOAuth }: AuthPageProps) {
 
               <div className="mb-8 space-y-2">
                 <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  {isSignup ? "Create your account" : "Welcome back"}
+                  {isResetMode ? "Reset password" : isSignup ? "Create your account" : "Welcome back"}
                 </div>
                 <h2 className="text-3xl font-semibold">
-                  {isSignup ? "Start your first run" : "Return to your mission"}
+                  {isResetMode ? "Forgot your password?" : isSignup ? "Start your first run" : "Return to your mission"}
                 </h2>
                 <p className="text-muted-foreground">
-                  {isSignup
-                    ? "Set up your class, weekly target, and first productivity loop."
-                    : "Continue where you left off and keep your momentum alive."}
+                  {isResetMode
+                    ? "Enter your email and we will send a password reset link."
+                    : isSignup
+                      ? "Set up your class, weekly target, and first productivity loop."
+                      : "Continue where you left off and keep your momentum alive."}
                 </p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {isSignup ? (
+                {isSignup && !isResetMode ? (
                   <div className="space-y-2">
                     <Label htmlFor="name">Display name</Label>
                     <div className="relative">
@@ -117,7 +160,7 @@ export function AuthPage({ onAuth, onOAuth }: AuthPageProps) {
                         onChange={(event) => setName(event.target.value)}
                         className="pl-10"
                         placeholder="What should Levelday call you?"
-                        required={isSignup}
+                        required={isSignup && !isResetMode}
                       />
                     </div>
                   </div>
@@ -139,54 +182,103 @@ export function AuthPage({ onAuth, onOAuth }: AuthPageProps) {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      className="pl-10"
-                      placeholder="At least something memorable"
-                      required
-                    />
+                {!isResetMode ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        className="pl-10"
+                        placeholder="At least something memorable"
+                        required={!isResetMode}
+                        minLength={12}
+                      />
+                    </div>
+
+                    {isSignup ? (
+                      <div className="rounded-2xl border border-border/60 bg-background/40 p-4 text-sm text-muted-foreground">
+                        <div className="mb-2 font-medium text-foreground">Password harus:</div>
+                        <div className="space-y-1">
+                          <div>{passwordRules.minLength ? "✓" : "•"} Minimal 12 karakter</div>
+                          <div>{passwordRules.hasUppercase ? "✓" : "•"} Ada huruf besar</div>
+                          <div>{passwordRules.hasLowercase ? "✓" : "•"} Ada huruf kecil</div>
+                          <div>{passwordRules.hasNumber ? "✓" : "•"} Ada angka</div>
+                          <div>{passwordRules.hasSymbol ? "✓" : "•"} Ada simbol</div>
+                          <div>{passwordRules.noSpaces ? "✓" : "•"} Tanpa spasi</div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
+                ) : null}
 
                 <Button
                   type="submit"
-                  disabled={isBusy}
+                  disabled={isBusy || (isSignup && !isResetMode && !isStrongPassword)}
                   className="mt-2 w-full bg-gradient-to-r from-purple-500 to-cyan-500 text-white hover:from-purple-600 hover:to-cyan-600"
                 >
-                  {isSignup ? "Create account" : "Sign in"}
+                  {isResetMode ? "Send reset link" : isSignup ? "Create account" : "Sign in"}
                 </Button>
               </form>
 
-              <div className="my-6 flex items-center gap-3">
-                <div className="h-px flex-1 bg-border/60" />
-                <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">or</span>
-                <div className="h-px flex-1 bg-border/60" />
-              </div>
+              {!isSignup && !isResetMode ? (
+                <div className="mt-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setIsResetMode(true)}
+                    className="text-sm font-medium text-primary"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              ) : null}
 
-              <Button type="button" variant="outline" onClick={handleGoogle} disabled={isBusy} className="w-full">
-                Continue with Google
-              </Button>
+              {!isResetMode ? (
+                <>
+                  <div className="my-6 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-border/60" />
+                    <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">or</span>
+                    <div className="h-px flex-1 bg-border/60" />
+                  </div>
+
+                  <Button type="button" variant="outline" onClick={handleGoogle} disabled={isBusy} className="w-full">
+                    Continue with Google
+                  </Button>
+                </>
+              ) : null}
 
               <div className="mt-6 rounded-2xl border border-border/60 bg-background/40 p-4 text-sm text-muted-foreground">
-                Google sign-in is the smoothest option for demos and mobile testing. If OAuth fails, add your current domain inside Firebase Authentication → Authorized domains.
+                Google sign-in is still available. Email login now uses stronger password rules and supports password reset by email.
               </div>
 
               <div className="mt-6 text-center text-sm text-muted-foreground">
-                {isSignup ? "Already have an account?" : "Need an account?"}{" "}
-                <button
-                  type="button"
-                  onClick={() => setIsSignup((value) => !value)}
-                  className="font-medium text-primary"
-                >
-                  {isSignup ? "Sign in" : "Create one"}
-                </button>
+                {isResetMode ? (
+                  <button
+                    type="button"
+                    onClick={resetToLogin}
+                    className="font-medium text-primary"
+                  >
+                    Back to sign in
+                  </button>
+                ) : (
+                  <>
+                    {isSignup ? "Already have an account?" : "Need an account?"}{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSignup((value) => !value);
+                        setIsResetMode(false);
+                        setPassword("");
+                      }}
+                      className="font-medium text-primary"
+                    >
+                      {isSignup ? "Sign in" : "Create one"}
+                    </button>
+                  </>
+                )}
               </div>
             </Card>
           </motion.div>

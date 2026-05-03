@@ -10,6 +10,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 
 import {
@@ -125,7 +126,6 @@ export default function App() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [assistantLoading, setAssistantLoading] = useState(false);
 
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
@@ -230,6 +230,30 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
+  const getAuthErrorMessage = (error: any) => {
+    const code = error?.code;
+
+    switch (code) {
+      case "auth/email-already-in-use":
+        return "Email ini sudah terdaftar. Coba login saja.";
+      case "auth/invalid-email":
+        return "Format email tidak valid.";
+      case "auth/user-not-found":
+        return "Akun tidak ditemukan.";
+      case "auth/wrong-password":
+      case "auth/invalid-credential":
+        return "Email atau password salah.";
+      case "auth/too-many-requests":
+        return "Terlalu banyak percobaan. Coba lagi sebentar.";
+      case "auth/popup-closed-by-user":
+        return "Popup login ditutup sebelum proses selesai.";
+      case "auth/network-request-failed":
+        return "Koneksi bermasalah. Coba lagi.";
+      default:
+        return error?.message || "Terjadi masalah saat login.";
+    }
+  };
+
   const handleAuth = async (name: string, email: string, password: string, isSignup: boolean) => {
     try {
       const credential = isSignup
@@ -260,7 +284,20 @@ export default function App() {
       setPendingAuth({ uid, name: resolvedName, email });
       setAppState((prev) => ({ ...prev, currentPage: "onboarding" }));
     } catch (error: any) {
-      toast.error("Login gagal", { description: error?.message || "Terjadi masalah saat masuk." });
+      toast.error("Login gagal", { description: getAuthErrorMessage(error) });
+    }
+  };
+
+  const handleForgotPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success("Link reset password terkirim", {
+        description: "Cek inbox atau folder spam email kamu.",
+      });
+    } catch (error: any) {
+      toast.error("Gagal kirim reset password", {
+        description: getAuthErrorMessage(error),
+      });
     }
   };
 
@@ -295,7 +332,7 @@ export default function App() {
       setPendingAuth({ uid, name: resolvedName, email });
       setAppState((prev) => ({ ...prev, currentPage: "onboarding" }));
     } catch (error: any) {
-      toast.error("Masuk dengan Google gagal", { description: error?.message || "Terjadi masalah saat masuk." });
+      toast.error("Masuk dengan Google gagal", { description: getAuthErrorMessage(error) });
       console.error("OAuth error:", error);
     }
   };
@@ -874,7 +911,13 @@ export default function App() {
       case "landing":
         return <LandingPage onGetStarted={() => handleNavigate("auth")} />;
       case "auth":
-        return <AuthPage onAuth={handleAuth} onOAuth={handleOAuth} />;
+        return (
+          <AuthPage
+            onAuth={handleAuth}
+            onOAuth={handleOAuth}
+            onForgotPassword={handleForgotPassword}
+          />
+        );
       case "onboarding":
         return <OnboardingPage onComplete={handleOnboardingComplete} />;
       case "dashboard": {
